@@ -223,8 +223,8 @@ fun TravelWalletApp(
     requestScreenshotRecognition: ((ScreenshotRecognitionResult) -> Unit) -> Unit,
     requestNotificationPermission: ((Boolean) -> Unit) -> Unit,
     requestExactReminderPermission: ((Boolean) -> Unit) -> Unit,
-    openPendingEmailImport: Boolean,
-    onPendingEmailImportOpened: () -> Unit,
+    openUpcomingTrips: Boolean,
+    onUpcomingTripsOpened: () -> Unit,
     setDarkSystemBars: (Boolean) -> Unit,
     viewModel: TravelWalletViewModel = viewModel(),
 ) {
@@ -240,7 +240,6 @@ fun TravelWalletApp(
     val emailAccountSummary by viewModel.emailAccountSummary.collectAsStateWithLifecycle()
     val emailAccountTestState by viewModel.emailAccountTestState.collectAsStateWithLifecycle()
     val emailFolderState by viewModel.emailFolderState.collectAsStateWithLifecycle()
-    val pendingEmailImport by viewModel.pendingEmailImport.collectAsStateWithLifecycle()
     val automaticEmailSyncEnabled by viewModel.automaticEmailSyncEnabled.collectAsStateWithLifecycle()
     val automaticEmailSyncInterval by viewModel.automaticEmailSyncInterval.collectAsStateWithLifecycle()
     val automaticEmailSyncStatus by viewModel.automaticEmailSyncStatus.collectAsStateWithLifecycle()
@@ -310,11 +309,13 @@ fun TravelWalletApp(
         screen = Screen.MAIN
     }
 
-    LaunchedEffect(openPendingEmailImport, pendingEmailImport) {
-        if (openPendingEmailImport && pendingEmailImport != null) {
-            viewModel.showPendingEmailImport()
-            screen = Screen.EMAIL_IMPORT
-            onPendingEmailImportOpened()
+    // 自动同步已经把行程存好了，通知只是事后告知，点开就落到行程页。
+    LaunchedEffect(openUpcomingTrips) {
+        if (openUpcomingTrips) {
+            screen = Screen.MAIN
+            tab = MainTab.TRIPS
+            tripsView = TripsView.UPCOMING
+            onUpcomingTripsOpened()
         }
     }
     LaunchedEffect(useDarkTheme) {
@@ -371,12 +372,7 @@ fun TravelWalletApp(
                         DashboardScreen(
                             documents = documents,
                             archivedDocuments = archivedDocuments,
-                            hasPendingEmailImport = pendingEmailImport != null,
                             hasEmailAccount = emailAccountSummary != null,
-                            onPendingEmailImportClick = {
-                                viewModel.showPendingEmailImport()
-                                screen = Screen.EMAIL_IMPORT
-                            },
                             onImportHistoryClick = {
                                 screen = Screen.EMAIL_IMPORT
                                 viewModel.loadFromEmail(includeHistoricalTrips = true)
@@ -391,11 +387,6 @@ fun TravelWalletApp(
                             onViewChange = { tripsView = it },
                             documents = documents,
                             archivedDocuments = archivedDocuments,
-                            hasPendingEmailImport = pendingEmailImport != null,
-                            onPendingEmailImportClick = {
-                                viewModel.showPendingEmailImport()
-                                screen = Screen.EMAIL_IMPORT
-                            },
                             onTripClick = { selectedTripId = it.document.stableId() },
                             onArchive = { viewModel.setArchived(it, true) },
                         )
@@ -463,19 +454,13 @@ fun TravelWalletApp(
 
                 Screen.EMAIL_IMPORT -> EmailImportScreen(
                     state = emailImportState,
-                    onBack = { screen = Screen.MAIN },
-                    onConfirm = { documentsToConfirm ->
-                        parsedDocuments = documentsToConfirm
-                        confirmationSource = Screen.EMAIL_IMPORT
-                        screen = Screen.CONFIRM
-                    },
+                    onDone = { screen = Screen.MAIN },
                 )
 
                 Screen.EMAIL_ACCOUNT -> EmailAccountScreen(
                     existingAccount = emailAccountSummary,
                     testState = emailAccountTestState,
                     folderState = emailFolderState,
-                    hasPendingEmailImport = pendingEmailImport != null,
                     onBack = { closeEmailAccount() },
                     onSave = viewModel::testAndSaveEmailAccount,
                     onLoadFolders = viewModel::loadEmailFolders,
@@ -536,10 +521,7 @@ fun TravelWalletApp(
                     documents = parsedDocuments,
                     onBack = { screen = confirmationSource },
                     onSave = {
-                        viewModel.save(
-                            documents = parsedDocuments,
-                            emailImport = confirmationSource == Screen.EMAIL_IMPORT,
-                        )
+                        viewModel.save(documents = parsedDocuments)
                         screen = Screen.MAIN
                     },
                 )
@@ -763,9 +745,7 @@ private fun MainTabsScaffold(
 private fun DashboardScreen(
     documents: List<SavedTravelDocument>,
     archivedDocuments: List<SavedTravelDocument>,
-    hasPendingEmailImport: Boolean,
     hasEmailAccount: Boolean,
-    onPendingEmailImportClick: () -> Unit,
     onImportHistoryClick: () -> Unit,
     onAddClick: () -> Unit,
     onTripClick: (SavedTravelDocument) -> Unit,
@@ -784,7 +764,7 @@ private fun DashboardScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("首页") }, windowInsets = WindowInsets(0, 0, 0, 0))
-        if (hasNothingSaved && !hasPendingEmailImport) {
+        if (hasNothingSaved) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -808,9 +788,6 @@ private fun DashboardScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (hasPendingEmailImport) {
-                    item { PendingEmailImportCard(onPendingEmailImportClick) }
-                }
                 val upcoming = nextTrip
                 if (upcoming != null) {
                     item { NextTripCard(saved = upcoming, now = now, onClick = { onTripClick(upcoming) }) }
@@ -1005,18 +982,6 @@ private fun HistoryImportHintCard(onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun PendingEmailImportCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ListItem(
-        headlineContent = { Text("有新的铁路行程等待确认") },
-        supportingContent = { Text("检查后保存到行程") },
-        leadingContent = { Icon(Icons.Default.Email, contentDescription = null) },
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TripsScreen(
@@ -1024,8 +989,6 @@ private fun TripsScreen(
     onViewChange: (TripsView) -> Unit,
     documents: List<SavedTravelDocument>,
     archivedDocuments: List<SavedTravelDocument>,
-    hasPendingEmailImport: Boolean,
-    onPendingEmailImportClick: () -> Unit,
     onTripClick: (SavedTravelDocument) -> Unit,
     onArchive: (SavedTravelDocument) -> Unit,
 ) {
@@ -1063,8 +1026,6 @@ private fun TripsScreen(
                 view = TripsView.entries[page],
                 documents = documents,
                 archivedDocuments = archivedDocuments,
-                showPendingImport = hasPendingEmailImport,
-                onPendingEmailImportClick = onPendingEmailImportClick,
                 onTripClick = onTripClick,
                 onArchive = onArchive,
             )
@@ -1077,8 +1038,6 @@ private fun TripsPage(
     view: TripsView,
     documents: List<SavedTravelDocument>,
     archivedDocuments: List<SavedTravelDocument>,
-    showPendingImport: Boolean,
-    onPendingEmailImportClick: () -> Unit,
     onTripClick: (SavedTravelDocument) -> Unit,
     onArchive: (SavedTravelDocument) -> Unit,
 ) {
@@ -1086,9 +1045,7 @@ private fun TripsPage(
         TripsView.UPCOMING -> documents
         TripsView.HISTORY -> archivedDocuments
     }
-    val pendingImport = showPendingImport && view == TripsView.UPCOMING
-
-    if (visibleDocuments.isEmpty() && !pendingImport) {
+    if (visibleDocuments.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1123,9 +1080,6 @@ private fun TripsPage(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (pendingImport) {
-                item { PendingEmailImportCard(onPendingEmailImportClick) }
-            }
             items(visibleDocuments, key = { it.document.stableId() }) { saved ->
                 if (view == TripsView.UPCOMING) {
                     UpcomingTripCard(
@@ -1514,13 +1468,12 @@ private fun SettingsScreen(
                         AutomaticEmailSyncStatus.FAILED -> "上次同步失败，请检查邮箱配置"
                         AutomaticEmailSyncStatus.INITIAL_SYNC_REQUIRED ->
                             "请先完成一次手动邮箱同步"
-                        AutomaticEmailSyncStatus.PENDING_CONFIRMATION -> "有行程等待确认"
                         AutomaticEmailSyncStatus.SUCCESS -> if (automaticEmailSyncStatusAt > 0) {
                             "上次同步：${formatSyncTime(automaticEmailSyncStatusAt)}"
                         } else {
-                            "发现新行程时通知你检查并保存"
+                            "发现新行程时自动保存并通知"
                         }
-                        AutomaticEmailSyncStatus.NEVER -> "发现新行程时通知你检查并保存"
+                        AutomaticEmailSyncStatus.NEVER -> "发现新行程时自动保存并通知"
                     },
                     checked = automaticEmailSyncEnabled,
                     onCheckedChange = onAutomaticEmailSyncChange,
@@ -1749,7 +1702,6 @@ private fun EmailAccountScreen(
     existingAccount: ImapAccountSummary?,
     testState: EmailAccountTestState,
     folderState: EmailFolderState,
-    hasPendingEmailImport: Boolean,
     onBack: () -> Unit,
     onSave: (ImapAccountConfig) -> Unit,
     onLoadFolders: () -> Unit,
@@ -1949,7 +1901,7 @@ private fun EmailAccountScreen(
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = onLoadFolders,
-                        enabled = !hasPendingEmailImport && folderState != EmailFolderState.Loading,
+                        enabled = folderState != EmailFolderState.Loading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
@@ -1990,14 +1942,6 @@ private fun EmailAccountScreen(
                         folderState.message,
                         modifier = Modifier.padding(top = 8.dp),
                         color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                if (hasPendingEmailImport) {
-                    Text(
-                        "请先处理等待确认的行程，再更改同步文件夹。",
-                        modifier = Modifier.padding(top = 8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 TextButton(
@@ -2058,12 +2002,11 @@ private fun EmailSyncProgressContent(
 @Composable
 private fun EmailImportScreen(
     state: EmailImportState,
-    onBack: () -> Unit,
-    onConfirm: (List<TravelDocument>) -> Unit,
+    onDone: () -> Unit,
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = { PageTopBar("从邮箱同步", onBack) },
+        topBar = { PageTopBar("从邮箱同步", onDone) },
     ) { contentPadding ->
         when (state) {
             EmailImportState.Idle -> EmailSyncProgressContent(
@@ -2089,7 +2032,7 @@ private fun EmailImportScreen(
                         state.message,
                         modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
                     )
-                    OutlinedButton(onClick = onBack) { Text("返回") }
+                    OutlinedButton(onClick = onDone) { Text("返回") }
                 }
             }
 
@@ -2107,7 +2050,7 @@ private fun EmailImportScreen(
                                 },
                             )
                             OutlinedButton(
-                                onClick = onBack,
+                                onClick = onDone,
                                 modifier = Modifier.padding(top = 20.dp),
                             ) {
                                 Text("完成")
@@ -2117,7 +2060,7 @@ private fun EmailImportScreen(
                 } else {
                     item {
                         Text(
-                            "请检查以下行程和状态，确认后将按订单更新本地记录。",
+                            "已按订单更新本地记录，以下是本次同步的行程。",
                             modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         )
                     }
@@ -2145,12 +2088,12 @@ private fun EmailImportScreen(
                     }
                     item {
                         Button(
-                            onClick = { onConfirm(state.documents) },
+                            onClick = onDone,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp, vertical = 16.dp),
                         ) {
-                            Text("检查并导入 ${state.documents.size} 个行程")
+                            Text("完成")
                         }
                     }
                 }

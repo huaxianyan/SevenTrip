@@ -20,6 +20,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.neko7ina.wallet.assistant.MainActivity
 import com.neko7ina.wallet.assistant.R
+import com.neko7ina.wallet.assistant.core.model.TravelDocument
+import com.neko7ina.wallet.assistant.core.model.TravelDocumentStatus
+import com.neko7ina.wallet.assistant.core.model.railRoute
 import com.neko7ina.wallet.assistant.settings.AppPreferences
 import com.neko7ina.wallet.assistant.settings.AutomaticEmailSyncStatus
 import java.util.concurrent.TimeUnit
@@ -78,9 +81,13 @@ class AutomaticEmailSyncWorker(
                     Result.success()
                 }
 
-                is EmailSyncOutcome.PendingConfirmation -> {
-                    updateStatus(preferences, AutomaticEmailSyncStatus.PENDING_CONFIRMATION)
-                    EmailSyncNotification.show(applicationContext)
+                // 行程已经落库了，通知只是事后告知，点开就能在行程页看到。
+                is EmailSyncOutcome.Imported -> {
+                    updateStatus(preferences, AutomaticEmailSyncStatus.SUCCESS)
+                    EmailSyncNotification.showImportedTrips(
+                        context = applicationContext,
+                        documents = outcome.documents,
+                    )
                     Result.success()
                 }
             }
@@ -105,11 +112,12 @@ class AutomaticEmailSyncWorker(
 }
 
 object EmailSyncNotification {
-    const val EXTRA_OPEN_PENDING_EMAIL_IMPORT = "open_pending_email_import"
+    const val EXTRA_OPEN_UPCOMING_TRIPS = "open_upcoming_trips"
     private const val CHANNEL_ID = "email_sync_results"
     private const val NOTIFICATION_ID = 12306
 
-    fun show(context: Context) {
+    fun showImportedTrips(context: Context, documents: List<TravelDocument>) {
+        if (documents.isEmpty()) return
         if (
             Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -117,7 +125,7 @@ object EmailSyncNotification {
         ) return
         createChannel(context)
         val intent = Intent(context, MainActivity::class.java).apply {
-            putExtra(EXTRA_OPEN_PENDING_EMAIL_IMPORT, true)
+            putExtra(EXTRA_OPEN_UPCOMING_TRIPS, true)
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val contentIntent = PendingIntent.getActivity(
@@ -128,8 +136,8 @@ object EmailSyncNotification {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_china_railway_notification)
-            .setContentTitle("发现新的铁路行程")
-            .setContentText("打开「出行」检查并保存")
+            .setContentTitle(notificationTitle(documents))
+            .setContentText(notificationSummary(documents))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
@@ -142,6 +150,24 @@ object EmailSyncNotification {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 
+    /** 只有整批都是新购票才说「添加」，改签和退票会让已有行程变状态，说「更新」。 */
+    private fun notificationTitle(documents: List<TravelDocument>): String {
+        val allNewlyConfirmed = documents.all {
+            it.status == TravelDocumentStatus.CONFIRMED
+        }
+        return if (allNewlyConfirmed) {
+            "已添加 ${documents.size} 条行程"
+        } else {
+            "已更新 ${documents.size} 条行程"
+        }
+    }
+
+    private fun notificationSummary(documents: List<TravelDocument>): String {
+        val firstRoute = documents.first().segments.firstOrNull()?.railRoute
+            ?: return "打开「出行」查看"
+        return if (documents.size == 1) firstRoute else "$firstRoute 等"
+    }
+
     private fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val channel = NotificationChannel(
@@ -149,7 +175,7 @@ object EmailSyncNotification {
             "邮箱同步",
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
-            description = "发现需要确认的新行程时通知"
+            description = "自动同步发现新行程或行程变化时通知"
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }

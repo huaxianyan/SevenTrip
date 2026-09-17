@@ -19,7 +19,6 @@ enum class AutomaticEmailSyncStatus {
     SUCCESS,
     FAILED,
     INITIAL_SYNC_REQUIRED,
-    PENDING_CONFIRMATION,
 }
 
 enum class ThemeMode {

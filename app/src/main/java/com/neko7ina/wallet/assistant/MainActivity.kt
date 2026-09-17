@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
     private var screenshotRecognitionCallback: ((ScreenshotRecognitionResult) -> Unit)? = null
     private var notificationPermissionCallback: ((Boolean) -> Unit)? = null
     private var exactReminderPermissionCallback: ((Boolean) -> Unit)? = null
-    private val openPendingEmailImport = mutableStateOf(false)
+    private val openUpcomingTrips = mutableStateOf(false)
 
     private val exactReminderPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -65,8 +65,8 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        openPendingEmailImport.value = intent.getBooleanExtra(
-            EmailSyncNotification.EXTRA_OPEN_PENDING_EMAIL_IMPORT,
+        openUpcomingTrips.value = intent.getBooleanExtra(
+            EmailSyncNotification.EXTRA_OPEN_UPCOMING_TRIPS,
             false,
         )
         enableEdgeToEdge()
@@ -77,8 +77,8 @@ class MainActivity : ComponentActivity() {
                 requestScreenshotRecognition = ::requestScreenshotRecognition,
                 requestNotificationPermission = ::requestNotificationPermission,
                 requestExactReminderPermission = ::requestExactReminderPermission,
-                openPendingEmailImport = openPendingEmailImport.value,
-                onPendingEmailImportOpened = { openPendingEmailImport.value = false },
+                openUpcomingTrips = openUpcomingTrips.value,
+                onUpcomingTripsOpened = { openUpcomingTrips.value = false },
                 setDarkSystemBars = ::setDarkSystemBars,
             )
         }
@@ -86,8 +86,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(EmailSyncNotification.EXTRA_OPEN_PENDING_EMAIL_IMPORT, false)) {
-            openPendingEmailImport.value = true
+        if (intent.getBooleanExtra(EmailSyncNotification.EXTRA_OPEN_UPCOMING_TRIPS, false)) {
+            openUpcomingTrips.value = true
         }
     }
 

@@ -1,9 +1,10 @@
 package com.neko7ina.wallet.assistant.email
 
 import android.content.Context
+import com.neko7ina.wallet.assistant.core.model.TravelDocument
 import com.neko7ina.wallet.assistant.core.parser.ChinaRailwayEmailParser
 import com.neko7ina.wallet.assistant.core.parser.ParseResult
-import com.neko7ina.wallet.assistant.data.PendingEmailImport
+import com.neko7ina.wallet.assistant.data.TravelDocumentImporter
 import com.neko7ina.wallet.assistant.data.TravelDocumentRepository
 import com.neko7ina.wallet.assistant.data.TravelWalletDatabase
 import com.neko7ina.wallet.assistant.hasDeparted
@@ -16,6 +17,7 @@ class EmailSyncCoordinator(context: Context) {
     private val repository = TravelDocumentRepository(
         TravelWalletDatabase.getInstance(applicationContext).travelDocumentDao(),
     )
+    private val importer = TravelDocumentImporter(applicationContext)
     private val accountStore = EmailAccountStore(applicationContext)
     private val preferences = AppPreferences(applicationContext)
     private val parser = ChinaRailwayEmailParser()
@@ -34,7 +36,7 @@ class EmailSyncCoordinator(context: Context) {
         includeHistoricalTrips: Boolean = false,
         onProgress: (EmailSyncProgress) -> Unit = {},
     ): EmailSyncOutcome = syncMutex.withLock {
-        repository.pendingEmailImport()?.let { return EmailSyncOutcome.PendingConfirmation(it) }
+        flushLeftoverPendingImportLocked()
         val account = accountStore.load() ?: return EmailSyncOutcome.NoAccount
         val checkpoint = preferences.imapSyncCheckpoint(
             accountFingerprint = account.fingerprint,
@@ -90,15 +92,15 @@ class EmailSyncCoordinator(context: Context) {
                     saveCheckpoint(account.fingerprint, searchResult.nextCheckpoint)
                     EmailSyncOutcome.NoRecognizableTrips
                 } else {
-                    val pending = PendingEmailImport(
+                    // 先落库再推进同步位置。中途失败时下次会重新扫到同一批邮件，
+                    // 而落库按行程主键覆盖是幂等的，不会写出重复行程；顺序反过来
+                    // 就会真的把这几封邮件漏掉。
+                    importer.persist(documents)
+                    saveCheckpoint(account.fingerprint, searchResult.nextCheckpoint)
+                    EmailSyncOutcome.Imported(
                         documents = documents,
                         warnings = result.warnings,
-                        checkpoint = searchResult.nextCheckpoint,
-                        accountFingerprint = account.fingerprint,
-                        createdAtEpochMillis = System.currentTimeMillis(),
                     )
-                    repository.savePendingEmailImport(pending)
-                    EmailSyncOutcome.PendingConfirmation(pending)
                 }
             }
 
@@ -109,11 +111,25 @@ class EmailSyncCoordinator(context: Context) {
         }
     }
 
-    suspend fun completePendingImport(pending: PendingEmailImport) = syncMutex.withLock {
-        saveCheckpoint(
-            accountFingerprint = pending.accountFingerprint,
-            checkpoint = pending.checkpoint,
-        )
+    /**
+     * 消化旧版本遗留的待确认候选。
+     *
+     * 早期策略是把候选存进 `pending_email_import` 等用户确认，确认前不推进同步位置，
+     * 期间所有同步都会被挡下来。现在解析出来就直接保存，所以升级后补存一次，
+     * 免得那张票永远留在待确认状态。
+     *
+     * 应用启动和同步开始时都会调用。重复调用是安全的：候选补存后即被删除，
+     * 而落库按行程主键覆盖本身幂等。
+     */
+    suspend fun flushLeftoverPendingImport() = syncMutex.withLock {
+        flushLeftoverPendingImportLocked()
+    }
+
+    /** [sync] 已持有 [syncMutex]，走这个不加锁的版本。 */
+    private suspend fun flushLeftoverPendingImportLocked() {
+        val leftover = repository.pendingEmailImport() ?: return
+        importer.persist(leftover.documents)
+        saveCheckpoint(leftover.accountFingerprint, leftover.checkpoint)
         repository.deletePendingEmailImport()
     }
 
@@ -145,5 +161,8 @@ sealed interface EmailSyncOutcome {
     data object InitialSyncRequired : EmailSyncOutcome
     data object NoNewRailwayMessages : EmailSyncOutcome
     data object NoRecognizableTrips : EmailSyncOutcome
-    data class PendingConfirmation(val pending: PendingEmailImport) : EmailSyncOutcome
+    data class Imported(
+        val documents: List<TravelDocument>,
+        val warnings: List<String>,
+    ) : EmailSyncOutcome
 }

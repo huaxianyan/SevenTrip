@@ -8,14 +8,13 @@ import com.neko7ina.wallet.assistant.archive.TripAutoArchiveScheduler
 import com.neko7ina.wallet.assistant.core.model.TravelDocument
 import com.neko7ina.wallet.assistant.core.model.TravelDocumentStatus
 import com.neko7ina.wallet.assistant.core.model.stableId
-import com.neko7ina.wallet.assistant.data.PendingEmailImport
 import com.neko7ina.wallet.assistant.data.SavedTravelDocument
+import com.neko7ina.wallet.assistant.data.TravelDocumentImporter
 import com.neko7ina.wallet.assistant.data.TravelDocumentRepository
 import com.neko7ina.wallet.assistant.data.TravelWalletDatabase
 import com.neko7ina.wallet.assistant.email.AutomaticEmailSyncScheduler
 import com.neko7ina.wallet.assistant.email.EmailAccountStore
 import com.neko7ina.wallet.assistant.email.EmailSyncCoordinator
-import com.neko7ina.wallet.assistant.email.EmailSyncNotification
 import com.neko7ina.wallet.assistant.email.EmailSyncOutcome
 import com.neko7ina.wallet.assistant.email.EmailSyncProgress
 import com.neko7ina.wallet.assistant.email.ImapAccessException
@@ -40,6 +39,7 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
     private val imapClient = ImapClient()
     private val emailAccountStore = EmailAccountStore(application)
     private val emailSyncCoordinator = EmailSyncCoordinator(application)
+    private val importer = TravelDocumentImporter(application)
     private val appPreferences = AppPreferences(application)
     private val automaticEmailSyncScheduler = AutomaticEmailSyncScheduler(application)
     private val reminderScheduler = TripReminderScheduler(application)
@@ -96,11 +96,6 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
     )
-    val pendingEmailImport = repository.observePendingEmailImport().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = null,
-    )
     val archivedDocuments = repository.observeArchivedDocuments().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -108,12 +103,16 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
     )
 
     init {
-        viewModelScope.launch { autoArchiveScheduler.reconcile() }
+        viewModelScope.launch {
+            autoArchiveScheduler.reconcile()
+            // 升级后第一次打开时，把旧版本留下的待确认候选补存进本地记录，
+            // 这样那张票不用等到下次同步就能在行程页看到。
+            emailSyncCoordinator.flushLeftoverPendingImport()
+        }
         automaticEmailSyncScheduler.reconcile()
     }
 
-    fun needsEmailHistoryChoice(): Boolean =
-        pendingEmailImport.value == null && !emailSyncCoordinator.canEnableAutomaticSync()
+    fun needsEmailHistoryChoice(): Boolean = !emailSyncCoordinator.canEnableAutomaticSync()
 
     fun loadFromEmail(includeHistoricalTrips: Boolean = false) {
         mutableEmailImportState.value = EmailImportState.Loading(EmailSyncProgress.Connecting)
@@ -149,11 +148,12 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
                         )
                     }
 
-                    is EmailSyncOutcome.PendingConfirmation -> {
-                        updateAutomaticEmailSyncStatus(
-                            AutomaticEmailSyncStatus.PENDING_CONFIRMATION,
+                    is EmailSyncOutcome.Imported -> {
+                        updateAutomaticEmailSyncStatus(AutomaticEmailSyncStatus.SUCCESS)
+                        mutableEmailImportState.value = EmailImportState.Success(
+                            documents = outcome.documents,
+                            warnings = outcome.warnings,
                         )
-                        mutableEmailImportState.value = outcome.pending.toEmailImportSuccess()
                     }
                 }
             } catch (error: ImapAccessException) {
@@ -245,7 +245,6 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
 
     fun selectEmailFolder(folderName: String?) {
         viewModelScope.launch {
-            if (repository.pendingEmailImport() != null) return@launch
             val current = emailAccountStore.load() ?: return@launch
             val updated = current.copy(folderName = folderName)
             if (updated.fingerprint == current.fingerprint) return@launch
@@ -261,44 +260,8 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun save(documents: List<TravelDocument>, emailImport: Boolean = false) {
-        viewModelScope.launch {
-            repository.getByReservations(documents).forEach { existing ->
-                val id = existing.document.stableId()
-                reminderScheduler.cancel(id)
-                autoArchiveScheduler.cancel(id)
-            }
-            val savedDocuments = repository.replaceReservations(
-                documents = documents,
-                defaultReminderEnabled = appPreferences.newTripsReminderEnabled,
-            )
-            savedDocuments.forEach { saved ->
-                if (
-                    saved.document.status == TravelDocumentStatus.CONFIRMED &&
-                    saved.reminderEnabled
-                ) {
-                    reminderScheduler.schedule(saved.document)
-                }
-                if (saved.document.status == TravelDocumentStatus.CONFIRMED) {
-                    autoArchiveScheduler.scheduleOrArchive(saved)
-                }
-            }
-            if (emailImport) {
-                repository.pendingEmailImport()?.let { pending ->
-                    emailSyncCoordinator.completePendingImport(pending)
-                    EmailSyncNotification.cancel(getApplication())
-                    updateAutomaticEmailSyncStatus(AutomaticEmailSyncStatus.SUCCESS)
-                }
-            }
-        }
-    }
-
-    fun showPendingEmailImport() {
-        viewModelScope.launch {
-            repository.pendingEmailImport()?.let { pending ->
-                mutableEmailImportState.value = pending.toEmailImportSuccess()
-            }
-        }
+    fun save(documents: List<TravelDocument>) {
+        viewModelScope.launch { importer.persist(documents) }
     }
 
     fun setAutomaticEmailSyncEnabled(enabled: Boolean): Boolean {
@@ -386,12 +349,6 @@ class TravelWalletViewModel(application: Application) : AndroidViewModel(applica
     fun scheduleReminderTest(document: TravelDocument) {
         reminderScheduler.scheduleDebugSequence(document)
     }
-
-    private fun PendingEmailImport.toEmailImportSuccess(): EmailImportState.Success =
-        EmailImportState.Success(
-            documents = documents,
-            warnings = warnings,
-        )
 
     private fun emptyEmailImportSuccess(message: String): EmailImportState.Success =
         EmailImportState.Success(
