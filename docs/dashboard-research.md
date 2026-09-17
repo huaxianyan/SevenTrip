@@ -430,3 +430,42 @@ TravelDocument.stableId() = SHA-256(provider + 订单号 + journeyKey)   (Travel
 
 试算过缩放版本，720 宽的反而比 1080 原尺寸更大（113 KB vs 101 KB）—— LANCZOS 重采样引入了额外色彩，PNG 压缩率下降，因此保留全分辨率。
 
+## 十四、发布 v1.2.0
+
+| 项 | 值 |
+|---|---|
+| 版本 | `1.2.0`（versionCode 4） |
+| 分支 | `feature/auto-save-synced-trips` → `main`（fast-forward） |
+| Tag | `v1.2.0`（annotated，与 `v1.0.0` / `v1.0.1` / `v1.1.0` 同格式） |
+| 发布方式 | 推送 tag 触发 `.github/workflows/release.yml` |
+| 产物 | `chuxing-1.2.0.apk` 与 `chuxing-1.2.0.apk.sha256` |
+
+版本号按语义化版本走 minor：把「解析后等用户确认」改成「解析后直接落库」，是行为变更而非修补。
+
+### 为什么要改
+
+七叔买票后自动同步扫到了，但弹出通知要他手动保存。他期望的是「扫到就自动进行程，最多通知告知一声，下次打开就能看到」。旧策略下候选先存进 `pending_email_import` 等确认，**确认前不推进 IMAP 位置**，期间所有同步都会被 `sync()` 开头那句提前返回挡下来 —— 一张没处理的票会让自动同步一直停摆。
+
+### 实现要点
+
+- 新增 `TravelDocumentImporter`，把「取消旧提醒与归档任务 → `replaceReservations` 落库 → 重排提醒与自动归档」这套动作从应用内导入路径抽出来，后台 worker 与手动同步共用同一份。
+- `EmailSyncCoordinator` 删掉 `PendingConfirmation` 分支，`ParseResult.Success` 且非空就直接 `persist`，返回新的 `Imported(documents, warnings)`。
+- **先落库、后推进 IMAP 位置。** 顺序反过来的话，中途失败会真把那几封邮件漏掉；这个顺序下失败只是下次重扫，而落库按行程主键覆盖本身幂等。
+- 旧版遗留的 `pending_email_import` 在应用启动和每次同步开头各补存一次（`flushLeftoverPendingImport`），免得升级后那张票永远卡在待确认。
+- `AutomaticEmailSyncStatus` 去掉 `PENDING_CONFIRMATION` 枚举值。getter 走 `runCatching` + 默认 NEVER，所以旧偏好里残留的那个字符串不会让应用崩。
+- 通知由 `EmailSyncNotification.showImportedTrips` 发，点开带 `EXTRA_OPEN_UPCOMING_TRIPS`，`TravelWalletApp` 收到后切到行程页「未出发」。
+
+### 真机验收
+
+Pixel 10 Pro `59271FDCH002F9`，装 `versionCode=4 / versionName=1.2.0`，签名 `eafaba2f…fe2be2be`，与设备上原包同证书，`install -r` 数据完整（78 条行程、邮箱配置、偏好都在）。
+
+造「全新购票邮件」场景没有动数据库文件：先用应用自己的「删除行程」（硬删 `dao.deleteById`）删掉 `E842237123`，再把 `trip_reminders.xml` 的 `lastScannedUid` 从 85 回退到 83。
+
+结果：worker 自动执行（logcat `Starting work for AutomaticEmailSyncWorker` → `Worker result SUCCESS`），行程自己回来，`updatedAt` 正好是执行时刻，`remind=1 / archived=0 / CONFIRMED`，**全程零人工操作**；`pending_email_import` 仍 0 行；检查点推进到 85。通知显示「出行 · 已添加 2 条行程 / 镇江 → 上海 等」，点开直接落到行程页「未出发」。手动同步结果页也确认过：标题「已按订单更新本地记录，以下是本次同步的行程。」，按钮「完成」。
+
+本地验证：`:core:test` 26 例 0 失败；`:app:assembleRelease` BUILD SUCCESSFUL，45.63 MB，`aapt2` 确认 `versionCode='4' versionName='1.2.0'`。
+
+### 已知的文案边界
+
+`notificationTitle` 只按「本批是否全为 `CONFIRMED`」决定说「已添加」还是「已更新」，不判断行程是否本来就存在。真实链路里 worker 只扫新邮件，所以买新票一定是「已添加」，改签退票走「已更新」，是对的。只有当同一封购票通知被重复扫到（本次验收人为回退检查点造成的）才会把老行程也说成「已添加」。
+

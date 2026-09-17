@@ -2,7 +2,7 @@
 
 本项目采用语义化版本号。正式安装包通过 [GitHub Releases](https://github.com/huaxianyan/WalletAssistant/releases) 发布。
 
-## [未发布]
+## [1.2.0] - 2026-09-17
 
 ### 自动同步
 
