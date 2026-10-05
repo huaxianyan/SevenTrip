@@ -89,21 +89,27 @@ jobs:
           cp "$apk" "release/$asset"
           (cd release && sha256sum "$asset" > "$asset.sha256")
 
+      - name: Verify release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_notes.py "docs/release-notes-${RELEASE_TAG}.md"
+
       - name: Prepare Release notes
         shell: bash
         run: |
           set -euo pipefail
           notes_file="docs/release-notes-${RELEASE_TAG}.md"
-          if [[ -f "$notes_file" ]]; then
-            cp "$notes_file" release-notes.md
-          else
-            printf '# 出行 %s\n\n' "$RELEASE_TAG" > release-notes.md
-          fi
+          test -f "$notes_file"
+          asset="chuxing-${VERSION}.apk"
           {
-            printf '\n## APK SHA-256\n\n```text\n'
-            cat "release/chuxing-${VERSION}.apk.sha256"
-            printf '```\n'
-          } >> release-notes.md
+            cat "$notes_file"
+            printf '\n## 构建信息\n\n'
+            printf '| 项目 | 值 |\n'
+            printf '| --- | --- |\n'
+            printf '| 版本 | `%s` |\n' "$RELEASE_TAG"
+            printf '| %s SHA-256 | `%s` |\n' "$asset" "$(sha256sum "release/$asset" | cut -d' ' -f1)"
+          } > release-notes.md
 
       - name: Upload dry-run artifact
         if: github.event_name == 'workflow_dispatch'
@@ -125,5 +131,5 @@ jobs:
             "release/chuxing-${VERSION}.apk.sha256#SHA-256" \
             --verify-tag \
             --latest \
-            --title "出行 ${RELEASE_TAG}" \
+            --title "$RELEASE_TAG" \
             --notes-file release-notes.md
