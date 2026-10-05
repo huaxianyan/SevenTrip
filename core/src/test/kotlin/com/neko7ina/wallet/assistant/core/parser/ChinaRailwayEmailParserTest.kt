@@ -68,7 +68,8 @@ class ChinaRailwayEmailParserTest {
         assertEquals(TravelDocumentStatus.CONFIRMED, document.status)
         assertEquals("E810309410", document.reservation.reference)
         assertEquals(BigDecimal("117.00"), document.reservation.totalPrice.amount)
-        assertEquals("2026-10-05", document.reservation.purchasedOn.toString())
+        // 改签不改写购票日期：purchasedOn 只有购票邮件才会设置。
+        assertEquals(null, document.reservation.purchasedOn)
         assertEquals("华贤阳", document.travelers.single().name)
 
         val segment = document.segments.single()
