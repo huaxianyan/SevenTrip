@@ -18,7 +18,13 @@ import java.time.ZoneId
 
 class ChinaRailwayEmailParser : TravelDocumentParser {
     override val parserId = "china-railway-email"
-    override val version = 2
+
+    /**
+     * 改动 [TICKET_REGEX] 的座席抓取规则时必须递增此版本号：它是 IMAP 同步断点 key
+     * 的一部分（见 AppPreferences.imapSyncCheckpoint），只有变了才会让已经扫过的
+     * 邮件重新解析一遍。v3 放开了「X车NN号」里「号」的必需性，用来兜住无座和卧铺。
+     */
+    override val version = 3
 
     override fun detect(document: RawDocument): DetectionResult {
         val body = normalize(document.body)
@@ -283,8 +289,19 @@ class ChinaRailwayEmailParser : TravelDocumentParser {
         val TOTAL_PRICE_REGEX = Regex("(?:新车票)?票款共计([\\d.]+)元")
         val REFUND_TOTAL_REGEX = Regex("应退票款([\\d.]+)元")
         val ORDER_REGEX = Regex("订单号码\\s*([A-Za-z0-9]+)")
+        /**
+         * 座席段写成「X车<座位>」，「号」是**可选**后缀。
+         *
+         * 有座票是「2车17C号」，但 12306 对无座票只写「11车无座」，
+         * 卧铺则是「3车12号下铺」——这两种都没有紧跟在座位值后面的「号」。
+         * 早先的写法把「号」写成了必需字符，于是这两类车票整条正则都匹配不上，
+         * 邮件会被判成「没有找到完整的车票信息」，改签/购票记录直接丢掉。
+         *
+         * 改成 ([^，,]+?)(?:号)? 之后：有座仍取到「17C」，无座取到「无座」，
+         * 卧铺取到「12号下铺」，三类写法都能落地。
+         */
         val TICKET_REGEX = Regex(
-            """(?:^|。\s*)(?:\d+[.．]\s*)?([^，,。]+)[，,]\s*(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})开[，,]\s*([^－—–,，-]+)\s*[-－—–]\s*([^，,]+)[，,]\s*([A-Za-z0-9]+)次列车[，,]\s*(\d+)车([^，,]+)号[，,]\s*([^，,]+)[，,]\s*(?:((?!票价)[^，,]+)[，,]\s*)?票价([\d.]+)元""",
+            """(?:^|。\s*)(?:\d+[.．]\s*)?([^，,。]+)[，,]\s*(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})开[，,]\s*([^－—–,，-]+)\s*[-－—–]\s*([^，,]+)[，,]\s*([A-Za-z0-9]+)次列车[，,]\s*(\d+)车([^，,]+?)(?:号)?[，,]\s*([^，,]+)[，,]\s*(?:((?!票价)[^，,]+)[，,]\s*)?票价([\d.]+)元""",
         )
     }
 }

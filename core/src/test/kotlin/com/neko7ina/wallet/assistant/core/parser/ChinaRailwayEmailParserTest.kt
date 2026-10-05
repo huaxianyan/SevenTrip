@@ -51,6 +51,106 @@ class ChinaRailwayEmailParserTest {
     }
 
     @Test
+    fun `导入无座改签邮件后创建有效行程`() {
+        // 真实邮件：无座票的座席写作「11车无座」，没有「号」。
+        val email = """
+            尊敬的 华贤阳先生：
+            您好！
+            您于2026年10月05日在中国铁路客户服务中心网站(12306.cn)成功改签车票1张，新车票票款共计117.00元。 订单号码E810309410。改签后的车票信息如下:
+            1.华贤阳，2026年10月06日13:37开，镇江站-上海站，G7053次列车，11车无座，二等座，成人票，票价117.0元，检票口北广场、南广场进站，电子客票。
+        """.trimIndent()
+
+        val result = assertIs<ParseResult.Success>(
+            ChinaRailwayEmailParser().parse(RawDocument(body = email)),
+        )
+
+        val document = result.documents.single()
+        assertEquals(TravelDocumentStatus.CONFIRMED, document.status)
+        assertEquals("E810309410", document.reservation.reference)
+        assertEquals(BigDecimal("117.00"), document.reservation.totalPrice.amount)
+        assertEquals("2026-10-05", document.reservation.purchasedOn.toString())
+        assertEquals("华贤阳", document.travelers.single().name)
+
+        val segment = document.segments.single()
+        assertEquals("G7053", segment.serviceNumber)
+        assertEquals("镇江站", segment.origin.name)
+        assertEquals("上海站", segment.destination.name)
+        assertEquals("2026-10-06T13:37+08:00[Asia/Shanghai]", segment.departureTime.toString())
+
+        val seat = segment.seatAssignments.single()
+        assertEquals("11", seat.section)
+        assertEquals("无座", seat.seat)
+        assertEquals("二等座", seat.category)
+        assertEquals("成人票", segment.attributes["ticketType"])
+        assertEquals("117.0", segment.attributes["price"])
+    }
+
+    @Test
+    fun `无座改签把同订单的原车票标记为已改签`() {
+        // 增量同步：原购票邮件已入库，改签邮件单独到达。原票必须被认出来并置为已改签。
+        val originalPurchase = RawDocument(
+            body = """
+                尊敬的 华贤阳先生：
+                您好！
+                您于2026年09月28日在中国铁路客户服务中心网站(12306.cn)成功购买了1张车票，票款共计117.00元，订单号码E810309410。所购车票信息如下:
+                1.华贤阳，2026年10月06日09:12开，镇江站-上海站，G7099次列车，5车05C号，二等座，成人票，票价117.0元，检票口北广场进站，电子客票。
+            """.trimIndent(),
+            receivedAtEpochMillis = 1,
+        )
+        val reschedule = RawDocument(
+            body = """
+                尊敬的 华贤阳先生：
+                您好！
+                您于2026年10月05日在中国铁路客户服务中心网站(12306.cn)成功改签车票1张，新车票票款共计117.00元。 订单号码E810309410。改签后的车票信息如下:
+                1.华贤阳，2026年10月06日13:37开，镇江站-上海站，G7053次列车，11车无座，二等座，成人票，票价117.0元，检票口北广场、南广场进站，电子客票。
+            """.trimIndent(),
+            receivedAtEpochMillis = 2,
+        )
+
+        val baseline = assertIs<ParseResult.Success>(
+            ChinaRailwayEmailParser().parseAll(listOf(originalPurchase)),
+        ).documents
+
+        val result = assertIs<ParseResult.Success>(
+            ChinaRailwayEmailParser().parseAll(
+                documents = listOf(reschedule),
+                baselineDocuments = baseline,
+            ),
+        )
+
+        val documents = result.documents.filter { it.reservation.reference == "E810309410" }
+        assertEquals(2, documents.size)
+        assertEquals(
+            TravelDocumentStatus.RESCHEDULED,
+            documents.single { it.segments.single().serviceNumber == "G7099" }.status,
+        )
+        assertEquals(
+            TravelDocumentStatus.CONFIRMED,
+            documents.single { it.segments.single().serviceNumber == "G7053" }.status,
+        )
+        assertTrue(result.warnings.none { "未找到对应的原车票" in it })
+    }
+
+    @Test
+    fun `导入卧铺票时保留带铺位的座位号`() {
+        val email = """
+            尊敬的 测试乘客先生：
+            您好！
+            您于2027年02月15日在中国铁路客户服务中心网站(12306.cn)成功购买了1张车票，票款共计320.00元，订单号码 E100000006。所购车票信息如下：
+            1.测试乘客，2027年02月21日20:10开，苹果站-香蕉站，K8001次列车，3车12号下铺，硬卧，成人票，票价320.0元，电子客票。
+        """.trimIndent()
+
+        val document = assertIs<ParseResult.Success>(
+            ChinaRailwayEmailParser().parse(RawDocument(body = email)),
+        ).documents.single()
+
+        val seat = document.segments.single().seatAssignments.single()
+        assertEquals("3", seat.section)
+        assertEquals("12号下铺", seat.seat)
+        assertEquals("硬卧", seat.category)
+    }
+
+    @Test
     fun `导入候补兑现邮件后创建有效行程`() {
         val email = """
             尊敬的 测试乘客先生：
