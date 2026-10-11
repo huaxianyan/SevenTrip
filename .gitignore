@@ -13,6 +13,7 @@ wallet.properties
 .externalNativeBuild/
 .cxx/
 .DS_Store
+__pycache__/
 /AGENTS.md
 /.workbuddy/
 /.device-verify/

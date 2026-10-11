@@ -16,14 +16,17 @@
 
 ## 发布说明以短正文加详细记录链接为准
 
-`docs/release-notes-v<版本>.md` 控制在 40 行以内，只写概述、主要更新，
+`docs/release-notes-v<版本>.md` 控制在 40 行以内，只写概述、新功能与问题修复分节，
 以及一条指向 `/blob/v<标签>/` 下真实存在文档的链接。Release 标题就是标签本身，
 不带产品名前缀。正文由 CI 在说明文件之后追加 `## 构建信息` 表格。
 
+新功能与问题修复分开描述，读者才能一眼看出哪些是新增能力、哪些是原有缺陷被修。
+至少出现其中一节，纯功能或纯修复的版本不必为了凑齐两节硬归类。
+门禁脚本是 `scripts/verify_release_notes.py`，回归测试是 `scripts/test_verify_release_notes.py`。
+`--summary-heading` 参数已随规范更新移除，不要用旧的合并节名绕过分类。
+
 依据是用户技能 `release-notes-standard`。使用方式、验收过程、构建范围这类长期内容
 放 `README.md` 或 `docs/`，不写进 Release 正文。
-
-门禁脚本是 `scripts/verify_release_notes.py`，CI 在发布前跑。
 
 发布说明目录沿用 `docs/release-notes-v<版本>.md` 的扁平命名，
 不使用标准默认的 `docs/release-notes/` 子目录。CI 里显式传文件路径。

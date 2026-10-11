@@ -132,8 +132,7 @@ Google Cloud、Wallet 和 Release 签名使用本机配置，不提交到仓库�
 - [Google Cloud 与 Wallet 配置](docs/google-cloud.md)
 - [Android Release 签名与恢复](docs/signing.md)
 - [Cloudflare Pages 部署](docs/cloudflare-pages.md)
-- [`v1.0.0` Release Notes 草稿](docs/release-notes-v1.0.0.md)
-- [更新记录](CHANGELOG.md)
+- [更新记录](CHANGELOG.md)，各版本的发布说明见 `docs/release-notes-v<版本>.md`
 
 ## 许可证
 
