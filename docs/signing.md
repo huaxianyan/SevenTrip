@@ -21,10 +21,10 @@ Release KeyStore 和密码不得进入 Git、Issue、Actions 日志或 Release �
 1. 检查 Tag 版本与 `app/build.gradle.kts` 中的 `versionName` 一致
 2. 从 GitHub `release` Environment Secret 恢复临时签名目录
 3. 使用 JDK 17 执行 `:core:test` 和 `:app:assembleRelease`
-4. 使用 `apksigner` 检查 APK 签名证书 SHA-256
-5. 生成 APK 和对应的 `.sha256` 文件
-6. 使用 `docs/release-notes-vX.Y.Z.md` 作为 Release Notes，文件不存在时生成最小标题
-7. 创建公开的 Latest GitHub Release，并上传两个 Asset
+4. 使用 `apksigner` 检查 APK 签名证书 SHA-256，并生成 APK 与对应的 `.sha256` 文件
+5. 用 `scripts/verify_release_notes.py` 校验 `docs/release-notes-vX.Y.Z.md`，不合规直接失败
+6. 把说明文件与追加的 `## 构建信息` 表格拼成 Release 正文，说明文件缺失时同样失败
+7. 创建公开的 Latest GitHub Release，标题只留 Tag，并上传两个 Asset
 
 Workflow 不为普通 Push 或 Pull Request 提供签名 Secret。推送 Tag 时创建 Release，从 Actions 页面手动运行时只执行签名构建，并保留 1 天的 Dry-run Artifact，不创建 Release。发布任务使用 GitHub `release` Environment，后续可以在仓库设置中为该 Environment 增加人工审批。
 
@@ -54,6 +54,13 @@ wallet.properties
 
    ```text
    docs/release-notes-v1.1.0.md
+   ```
+
+   正文不超过 40 行，新功能与问题修复分开成节（至少一节），末尾带一条指向
+   `/blob/v<标签>/` 的详细记录链接。提交前先本地跑一次门禁：
+
+   ```bash
+   python scripts/verify_release_notes.py docs/release-notes-v1.1.0.md
    ```
 
 4. 完成代码审查和真机验收后提交并推送 `main`
