@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://chuxing.neko7ina.com/">应用主页</a> ·
-  <a href="https://github.com/huaxianyan/WalletAssistant/releases">下载</a> ·
+  <a href="https://github.com/huaxianyan/SevenTrip/releases">下载</a> ·
   <a href="https://chuxing.neko7ina.com/privacy/">隐私政策</a> ·
   <a href="https://chuxing.neko7ina.com/support/">支持</a>
 </p>
@@ -105,7 +105,7 @@ IMAP 邮箱 / 粘贴正文 / 截图
 
 ## 安装
 
-正式 APK 只通过 [GitHub Releases](https://github.com/huaxianyan/WalletAssistant/releases) 发布，不通过 Google Play 分发。下载后请核对对应 Release Notes 中公布的 SHA-256。
+正式 APK 只通过 [GitHub Releases](https://github.com/huaxianyan/SevenTrip/releases) 发布，不通过 Google Play 分发。下载后请核对对应 Release Notes 中公布的 SHA-256。
 
 ```text
 应用名称：出行
@@ -129,6 +129,7 @@ IMAP 邮箱 / 粘贴正文 / 截图
 
 Google Cloud、Wallet 和 Release 签名使用本机配置，不提交到仓库。维护文档：
 
+- [长期决策](docs/handoff/DECISIONS.md) 与 [日期交接记录](docs/handoff/)：当前主线、验证边界和下一步
 - [Google Cloud 与 Wallet 配置](docs/google-cloud.md)
 - [Android Release 签名与恢复](docs/signing.md)
 - [Cloudflare Pages 部署](docs/cloudflare-pages.md)
