@@ -41,7 +41,7 @@ class TripReminderScheduler(context: Context) {
         val id = document.stableId()
         val standardLead = Duration.ofMinutes(appPreferences.departureReminderMinutes.toLong())
         val liveLead = Duration.ofMinutes(appPreferences.liveStatusMinutes.toLong())
-        scheduleAlarm(id, STANDARD_SUFFIX, document, ReminderKind.STANDARD, departure.minus(standardLead))
+        scheduleAlarm(id, STANDARD_SUFFIX, document, ReminderKind.STANDARD, departure.minus(standardLead), allowLateFire = false)
         scheduleAlarm(id, LIVE_SUFFIX, document, ReminderKind.LIVE, departure.minus(liveLead))
         scheduleAlarm(id, END_SUFFIX, document, ReminderKind.END, departure)
     }
@@ -88,6 +88,11 @@ class TripReminderScheduler(context: Context) {
         TripReminderReceiver.cancelNotification(applicationContext, documentId)
     }
 
+    /**
+     * 出门提醒已经触发过一次后，任何原因的重新调度都不再把它重新架到「现在」，
+     * 否则用户读过的提醒会再弹一次。实时倒计时和发车补弹不受影响：
+     * 前者还没到触发点时不会被夹到过去，后者本来就该迟到时补弹。
+     */
     private fun scheduleAlarm(
         id: String,
         suffix: String,
@@ -95,7 +100,9 @@ class TripReminderScheduler(context: Context) {
         kind: ReminderKind,
         runAt: Instant,
         displayEnd: Instant = document.segments.minOf { it.departureTime.toInstant() },
+        allowLateFire: Boolean = true,
     ) {
+        if (!allowLateFire && !runAt.isAfter(Instant.now())) return
         val pendingIntent = TripReminderReceiver.pendingIntent(
             context = applicationContext,
             documentId = id,

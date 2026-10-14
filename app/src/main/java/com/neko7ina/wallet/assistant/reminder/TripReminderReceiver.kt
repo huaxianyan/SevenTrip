@@ -36,8 +36,18 @@ class TripReminderReceiver : BroadcastReceiver() {
             ACTION_REMINDER -> handleReminder(context, intent)
             ACTION_BOARDED -> handleNotificationAction(context, intent, archive = true)
             ACTION_CANCEL_REMINDER -> handleNotificationAction(context, intent, archive = false)
+            ACTION_STANDARD_READ -> handleStandardRead(context, intent)
             else -> rescheduleEnabledTrips(context)
         }
+    }
+
+    /**
+     * 出门提醒的「已读」只关这条通知。它的报警是一次性的，触发点过后
+     * 调度器不再重架，所以这里不写任何状态，也不碰实时提醒与自动归档。
+     */
+    private fun handleStandardRead(context: Context, intent: Intent) {
+        val documentId = intent.getStringExtra(KEY_DOCUMENT_ID) ?: return
+        cancelNotification(context, documentId)
     }
 
     private fun handleReminder(context: Context, intent: Intent) {
@@ -72,12 +82,18 @@ class TripReminderReceiver : BroadcastReceiver() {
                     .bigText("$departure\n$route\n$seatDescription"),
             )
             .setContentIntent(contentIntent(context, documentId))
-            .addAction(0, "已上车", notificationAction(context, documentId, ACTION_BOARDED))
-            .addAction(
-                0,
-                "取消提醒",
-                notificationAction(context, documentId, ACTION_CANCEL_REMINDER),
-            )
+            .apply {
+                if (kind == ReminderKind.STANDARD) {
+                    addAction(0, "已读", notificationAction(context, documentId, ACTION_STANDARD_READ))
+                } else {
+                    addAction(0, "已上车", notificationAction(context, documentId, ACTION_BOARDED))
+                    addAction(
+                        0,
+                        "取消提醒",
+                        notificationAction(context, documentId, ACTION_CANCEL_REMINDER),
+                    )
+                }
+            }
             .setAutoCancel(kind == ReminderKind.STANDARD)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -142,6 +158,8 @@ class TripReminderReceiver : BroadcastReceiver() {
             "com.neko7ina.wallet.assistant.action.TRIP_BOARDED"
         private const val ACTION_CANCEL_REMINDER =
             "com.neko7ina.wallet.assistant.action.CANCEL_TRIP_REMINDER"
+        private const val ACTION_STANDARD_READ =
+            "com.neko7ina.wallet.assistant.action.STANDARD_TRIP_REMINDER_READ"
         private const val CHANNEL_ID = "trip_departure_reminders"
         private const val KEY_DOCUMENT_ID = "document_id"
         private const val KEY_KIND = "kind"
