@@ -300,7 +300,7 @@ release 包签名 `CN=WalletAssistant, O=NeKo7inA, C=CN`，证书 SHA-256 `eafab
 
 ## 十、真机验收记录
 
-设备 Pixel 10 Pro（`59271FDCH002F9`），2026-09-14 16:42 覆盖安装 release 包。
+设备 Pixel 10 Pro（序列号见本地 `AGENTS.md`），2026-09-14 16:42 覆盖安装 release 包。
 
 ### 通过项
 
@@ -457,7 +457,7 @@ TravelDocument.stableId() = SHA-256(provider + 订单号 + journeyKey)   (Travel
 
 ### 真机验收
 
-Pixel 10 Pro `59271FDCH002F9`，装 `versionCode=4 / versionName=1.2.0`，签名 `eafaba2f…fe2be2be`，与设备上原包同证书，`install -r` 数据完整（78 条行程、邮箱配置、偏好都在）。
+Pixel 10 Pro（序列号见本地 `AGENTS.md`），装 `versionCode=4 / versionName=1.2.0`，签名 `eafaba2f…fe2be2be`，与设备上原包同证书，`install -r` 数据完整（78 条行程、邮箱配置、偏好都在）。
 
 造「全新购票邮件」场景没有动数据库文件：先用应用自己的「删除行程」（硬删 `dao.deleteById`）删掉 `E842237123`，再把 `trip_reminders.xml` 的 `lastScannedUid` 从 85 回退到 83。
 

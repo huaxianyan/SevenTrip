@@ -36,13 +36,13 @@
 `versionCode` 严格递增，否则无法覆盖安装。产物命名 `chuxing-<版本>.apk`，
 同时产出 `chuxing-<版本>.apk.sha256`。
 
-`versionName` 与 `versionCode` 不要求一一对应。1.2.0 的 `versionCode` 取 5，
-因为用于真机验收的构建就是 5，沿用它可以省掉一次重装。
+`versionName` 与 `versionCode` 不要求一一对应。当前 `versionCode` 为 6（`1.3.0`），
+从真机验收构建所用的 5 递增而来。
 
 ## 进度文档的形态
 
 进度记录放 `docs/handoff/`：长决策在本文件，每日流水在
 `docs/handoff/YYYY-MM-DD.md`，两者都入库，任何工具克隆仓库都能读到。
 
-内网地址、设备序列号、凭据位置写本机 `AGENTS.md`（已被 `.gitignore` 忽略），
+内网地址、设备序列号、凭据位置写本机 `AGENTS.md`（已被仓库本地 `.git/info/exclude` 忽略），
 不写进这里。

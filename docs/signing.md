@@ -8,11 +8,7 @@
 eafaba2f329a58d091d1641630339f2cc3e81bb72c4e3e048fe5f068fe2be2be
 ```
 
-Release KeyStore 和密码不得进入 Git、Issue、Actions 日志或 Release 附件。完整恢复包保存在：
-
-```text
-\\192.168.7.216\homes\NeKo7inA\dev\Android Signing\WalletAssistant
-```
+Release KeyStore 和密码不得进入 Git、Issue、Actions 日志或 Release 附件。完整恢复包存放在内网 NAS 的项目签名目录，本机恢复位置与读取路径见本地 `AGENTS.md`。
 
 ## GitHub Actions 自动发布
 
