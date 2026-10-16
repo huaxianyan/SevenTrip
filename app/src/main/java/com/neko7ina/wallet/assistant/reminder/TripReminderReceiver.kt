@@ -100,6 +100,9 @@ class TripReminderReceiver : BroadcastReceiver() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .apply {
                 if (kind == ReminderKind.LIVE) {
+                    // 倒计时基准是固定的出发时刻，重新发布通知只重启画面，不会算错数值。
+                    // 状态栏胶囊的走秒平滑度属于平台侧，缺陷号 450909625，本应用不做规避。
+                    // 排查记录见 docs/handoff/2026-10-16.md。
                     setOngoing(true)
                     setWhen(displayEnd)
                     setUsesChronometer(true)
