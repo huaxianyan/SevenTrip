@@ -74,10 +74,10 @@ wallet.properties
 
 ## 本机恢复与手动构建
 
-1. 将 NAS 中 `WalletAssistant` 文件夹完整复制到：
+1. 将 NAS 中 `SevenTrip` 文件夹完整复制到：
 
    ```text
-   %USERPROFILE%\.android\signing\WalletAssistant
+   %USERPROFILE%\.android\signing\SevenTrip
    ```
 
 2. 确认目录包含：

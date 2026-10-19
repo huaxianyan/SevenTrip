@@ -9,7 +9,7 @@ plugins {
 }
 
 val signingPropertiesFile = file(
-    "${System.getProperty("user.home")}/.android/signing/WalletAssistant/signing.properties",
+    "${System.getProperty("user.home")}/.android/signing/SevenTrip/signing.properties",
 )
 val signingProperties = Properties().apply {
     if (signingPropertiesFile.exists()) {
@@ -17,7 +17,7 @@ val signingProperties = Properties().apply {
     }
 }
 val walletPropertiesFile = file(
-    "${System.getProperty("user.home")}/.android/signing/WalletAssistant/wallet.properties",
+    "${System.getProperty("user.home")}/.android/signing/SevenTrip/wallet.properties",
 )
 check(walletPropertiesFile.exists()) {
     "Missing Google Wallet configuration: $walletPropertiesFile"

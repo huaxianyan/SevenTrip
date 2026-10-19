@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RELEASE_BUNDLE"
-          signing_dir="$HOME/.android/signing/WalletAssistant"
+          signing_dir="$HOME/.android/signing/SevenTrip"
           mkdir -p "$signing_dir"
           printf '%s' "$RELEASE_BUNDLE" | base64 --decode | tar -xz -C "$signing_dir"
           test -f "$signing_dir/signing.properties"
