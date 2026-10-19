@@ -12,7 +12,7 @@ https://chuxing.neko7ina.com
 
 1. 登录 Cloudflare Dashboard
 2. 进入 `Workers & Pages`，选择 `Create application → Pages → Connect to Git`
-3. 授权并选择 GitHub 仓库 `huaxianyan/WalletAssistant`
+3. 授权并选择 GitHub 仓库 `huaxianyan/SevenTrip`
 4. 使用以下构建设置：
 
    ```text
