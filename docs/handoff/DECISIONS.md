@@ -39,6 +39,12 @@
 `versionName` 与 `versionCode` 不要求一一对应。当前 `versionCode` 为 6（`1.3.0`），
 从真机验收构建所用的 5 递增而来。
 
+## 包名与签名身份不随仓库改名变动
+
+`applicationId` 是 `com.neko7ina.wallet.assistant`，签名证书是 `CN=WalletAssistant, O=NeKo7inA, C=CN`，摘要 `eafaba2f329a58d091d1641630339f2cc3e81bb72c4e3e048fe5f068fe2be2be`。两者都登记在 Google Wallet 的 Issuer 侧：调用方按包名加签名证书校验，任一改动都会让用户添加或更新 Wallet 卡片失败，也会让已装用户无法覆盖安装。
+
+所以仓库名改成 `SevenTrip` 之后，包名、证书、keystore 文件名与别名一律保持原名。改这些不是重命名，是换调用方身份。
+
 ## 进度文档的形态
 
 进度记录放 `docs/handoff/`：长决策在本文件，每日流水在
