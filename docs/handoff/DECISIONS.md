@@ -34,7 +34,7 @@
 ## 版本号与产物命名
 
 `versionCode` 严格递增，否则无法覆盖安装。产物命名 `SevenTrip-<版本>.apk`，
-同时产出 `SevenTrip-<版本>.apk.sha256`。
+同时产出 `SevenTrip-<版本>.apk.sha256`。发布资产不设显示标签：`gh release create` 不写 `#` 后缀，否则页面上显示的是标签而不是文件名，各版本看起来都一样。
 
 `versionName` 与 `versionCode` 不要求一一对应。当前 `versionCode` 为 6（`1.3.0`），
 从真机验收构建所用的 5 递增而来。

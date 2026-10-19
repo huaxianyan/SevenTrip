@@ -127,8 +127,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$RELEASE_TAG" \
-            "release/SevenTrip-${VERSION}.apk#Android APK" \
-            "release/SevenTrip-${VERSION}.apk.sha256#SHA-256" \
+            "release/SevenTrip-${VERSION}.apk" \
+            "release/SevenTrip-${VERSION}.apk.sha256" \
             --verify-tag \
             --latest \
             --title "$RELEASE_TAG" \
