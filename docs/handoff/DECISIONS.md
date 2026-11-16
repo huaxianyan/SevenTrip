@@ -28,8 +28,9 @@
 依据是用户技能 `release-notes-standard`。使用方式、验收过程、构建范围这类长期内容
 放 `README.md` 或 `docs/`，不写进 Release 正文。
 
-发布说明目录沿用 `docs/release-notes-v<版本>.md` 的扁平命名，
-不使用标准默认的 `docs/release-notes/` 子目录。CI 里显式传文件路径。
+发布说明放 `docs/release-notes/v<版本>.md`。
+
+> 2026-11-17 修订：此前决策为扁平命名 `docs/release-notes-v<版本>.md`，理由是「CI 里显式传路径，不用子目录」。该条作废，原因是归档仓库的文档落点统一为 `docs/release-notes/` 子目录，`docs/` 根只放固定文件；本项目的 `verify_release_notes.py` 文档字符串本来就写的是子目录形态，属实现与决策不一致。工作流的两处路径已同步改。
 
 ## 版本号与产物命名
 

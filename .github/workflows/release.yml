@@ -93,13 +93,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/verify_release_notes.py "docs/release-notes-${RELEASE_TAG}.md"
+          python3 scripts/verify_release_notes.py "docs/release-notes/${RELEASE_TAG}.md"
 
       - name: Prepare Release notes
         shell: bash
         run: |
           set -euo pipefail
-          notes_file="docs/release-notes-${RELEASE_TAG}.md"
+          notes_file="docs/release-notes/${RELEASE_TAG}.md"
           test -f "$notes_file"
           asset="SevenTrip-${VERSION}.apk"
           {
